@@ -1,11 +1,13 @@
 name: Build
 
-on: workflow_dispatch
+on:
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     name: Build
+
     steps:
     - uses: actions/checkout@v4
 
@@ -20,17 +22,16 @@ jobs:
       with:
         node-version: 20
 
-    - name: Clone Repo
+    - name: Clone upstream memos
       run: |
-        export LATEST_APP=$(wget -qO- https://api.github.com/repos/usememos/memos/tags | gawk -F '["v]' '/name/{print "v"$5;exit}')
-        git clone -b $LATEST_APP https://github.com/usememos/memos
+        LATEST_APP=$(curl -s https://api.github.com/repos/usememos/memos/tags | jq -r '.[0].name')
+        echo "Latest upstream tag: $LATEST_APP"
+        git clone -b "$LATEST_APP" https://github.com/usememos/memos
         npm install -g pnpm
 
     - name: Build Frontend
       run: |
         cd memos/web
-        # export COREPACK_SKIP_SIGNATURES=true
-        # corepack enable && export COREPACK_SKIP_SIGNATURES=true && pnpm i --frozen-lockfile
         pnpm i --frozen-lockfile
         pnpm build
         mkdir -p ../artifact
@@ -39,28 +40,42 @@ jobs:
         cp -R dist ../server/router/frontend/dist
         cd ../..
 
-    - name: Build binary
+    - name: Build binaries
       run: |
         cd memos
-        GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o memos ./cmd/memos/main.go && rm -f artifact/* && cp memos artifact/memos.exe && cd artifact && tar -czvf ../memos-windows-amd64.tar.gz * && cd ..
-        GOOS=freebsd GOARCH=amd64 CGO_ENABLED=0 go build -o memos ./cmd/memos/main.go && rm -f artifact/* && cp memos artifact/memos && cd artifact && tar -czvf ../memos-freebsd-amd64.tar.gz * && cd ..
-        GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -o memos ./cmd/memos/main.go && rm -f artifact/* && cp memos artifact/memos && cd artifact && tar -czvf ../memos-darwin-amd64.tar.gz * && cd ..
-        GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o memos ./cmd/memos/main.go && rm -f artifact/* && cp memos artifact/memos && cd artifact && tar -czvf ../memos-linux-amd64.tar.gz * && cd ..
+        mkdir -p artifact
+
+        build() {
+          GOOS=$1 GOARCH=$2 CGO_ENABLED=0 go build -o memos ./cmd/memos/main.go
+          rm -f artifact/*
+          cp memos artifact/memos
+          cd artifact
+          tar -czvf ../memos-$1-$2.tar.gz *
+          cd ..
+        }
+
+        build windows amd64
+        build freebsd amd64
+        build darwin amd64
+        build linux amd64
+
         cd ..
-        
+
     - name: Upload artifact
-      uses: actions/upload-artifact@main
+      uses: actions/upload-artifact@v4
       with:
         name: memos-pre-built
         path: |
-            memos/memos-windows-amd64.tar.gz
-            memos/memos-freebsd-amd64.tar.gz
-            memos/memos-darwin-amd64.tar.gz
-            memos/memos-linux-amd64.tar.gz
-            
+          memos/memos-windows-amd64.tar.gz
+          memos/memos-freebsd-amd64.tar.gz
+          memos/memos-darwin-amd64.tar.gz
+          memos/memos-linux-amd64.tar.gz
+
     - name: Generate release tag
       id: tag
-      run: echo "release_tag=$(wget -qO- https://api.github.com/repos/usememos/memos/tags | gawk -F '["v]' '/name/{print "v"$5;exit}')" >> $GITHUB_OUTPUT
+      run: |
+        RELEASE_TAG=$(curl -s https://api.github.com/repos/usememos/memos/tags | jq -r '.[0].name')
+        echo "release_tag=$RELEASE_TAG" >> $GITHUB_OUTPUT
 
     - name: Create release
       uses: softprops/action-gh-release@v1
@@ -69,10 +84,11 @@ jobs:
       with:
         tag_name: ${{ steps.tag.outputs.release_tag }}
         files: |
-            memos/memos-windows-amd64.tar.gz
-            memos/memos-freebsd-amd64.tar.gz
-            memos/memos-darwin-amd64.tar.gz
-            memos/memos-linux-amd64.tar.gz
+          memos/memos-windows-amd64.tar.gz
+          memos/memos-freebsd-amd64.tar.gz
+          memos/memos-darwin-amd64.tar.gz
+          memos/memos-linux-amd64.tar.gz
+
     - name: Delete workflow runs
       uses: Mattraks/delete-workflow-runs@v2
       with:
