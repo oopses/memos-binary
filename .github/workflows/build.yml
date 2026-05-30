@@ -20,14 +20,14 @@ jobs:
     - name: Set up Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: 20
+        node-version: 24
 
     - name: Clone upstream memos
       run: |
         LATEST_APP=$(curl -s https://api.github.com/repos/usememos/memos/tags | jq -r '.[0].name')
         echo "Latest upstream tag: $LATEST_APP"
         git clone -b "$LATEST_APP" https://github.com/usememos/memos
-        npm install -g pnpm
+        npm install -g pnpm@11
 
     - name: Build Frontend
       run: |
