@@ -23,7 +23,7 @@ jobs:
 
     - name: Clone upstream memos
       run: |
-        LATEST_APP=$(curl -s https://api.github.com/repos/usememos/memos/tags | jq -r '.[0].name')
+        LATEST_APP=$(curl -s -H "Accept: application/vnd.github+json" https://api.github.com/repos/usememos/memos/tags | jq -r '.[0].name')
         echo "Latest upstream tag: $LATEST_APP"
         git clone -b "$LATEST_APP" https://github.com/usememos/memos
         npm install -g pnpm@11
@@ -67,7 +67,7 @@ jobs:
     - name: Generate release tag
       id: tag
       run: |
-        RELEASE_TAG=$(curl -s https://api.github.com/repos/usememos/memos/tags | jq -r '.[0].name')
+        RELEASE_TAG=$(curl -s -H "Accept: application/vnd.github+json" https://api.github.com/repos/usememos/memos/tags | jq -r '.[0].name')
         echo "release_tag=$RELEASE_TAG" >> $GITHUB_OUTPUT
 
     - name: Create release
