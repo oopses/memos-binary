@@ -14,8 +14,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v4
       with:
-        go-version: 'stable'
-        check-latest: true
+        go-version: '1.26.2'
 
     - name: Set up Node.js
       uses: actions/setup-node@v4
@@ -46,7 +45,7 @@ jobs:
         mkdir -p artifact
 
         build() {
-          GOOS=$1 GOARCH=$2 CGO_ENABLED=0 go build -o memos ./cmd/memos/main.go
+          GOOS=$1 GOARCH=$2 CGO_ENABLED=0 go build -o memos ./cmd/memos
           rm -f artifact/*
           cp memos artifact/memos
           cd artifact
