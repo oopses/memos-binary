@@ -34,10 +34,22 @@ jobs:
         pnpm i --frozen-lockfile
         pnpm build
         mkdir -p ../artifact
-        rm -rf ../server/router/frontend/dist
-        mkdir -p ../server/router/frontend
-        cp -R dist ../server/router/frontend/dist
-        cd ../..
+        cd ..
+        # The frontend is embedded by the package holding the
+        # `//go:embed dist/*` directive. That package was renamed from
+        # server/router/frontend to server/frontend in usememos/memos#6317,
+        # so locate it instead of hardcoding the path: a stale path silently
+        # ships the repo's placeholder index.html and the web UI breaks with
+        # "No embeddable frontend found."
+        FRONTEND_DIR=$(grep -rl --include='*.go' 'go:embed dist' server | xargs -r dirname | head -n1)
+        if [ -z "$FRONTEND_DIR" ]; then
+          echo "::error::cannot find the package embedding the frontend"
+          exit 1
+        fi
+        echo "Frontend embed directory: $FRONTEND_DIR"
+        rm -rf "$FRONTEND_DIR/dist"
+        mkdir -p "$FRONTEND_DIR"
+        cp -R web/dist "$FRONTEND_DIR/dist"
 
     - name: Build binaries
       run: |
@@ -46,6 +58,11 @@ jobs:
 
         build() {
           GOOS=$1 GOARCH=$2 CGO_ENABLED=0 go build -o memos ./cmd/memos
+          # Guard against shipping a binary without the web UI.
+          if ! grep -aq 'assets/index-' memos; then
+            echo "::error::frontend assets are missing from the built binary"
+            exit 1
+          fi
           rm -f artifact/*
           cp memos artifact/memos
           cd artifact
